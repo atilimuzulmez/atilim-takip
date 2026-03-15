@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Atılım Takip">
+<title>Atılım Takip</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg:      #F2F1ED;
+  --surface: #FFFFFF;
+  --sf2:     #F5F3EE;
+  --sf3:     #ECEAE4;
+  --border:  #E8E5DF;
+  --border2: #D5D1CA;
+  --text:    #1A1714;
+  --muted:   #6B6762;
+  --dim:     #B0ABA3;
+  --accent:  #C8A96E;
+  --accent2: #A8893E;
+  --done:    #4CAF7D;
+  --danger:  #D04040;
+  --banka:   #4CAF7D;
+  --elden:   #5B9BD5;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text); }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+/* ===== APP SHELL ===== */
+.app { display: flex; flex-direction: column; height: 100%; padding-top: var(--safe-top); }
+
+/* ===== HEADER ===== */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 10px;
+  flex-shrink: 0;
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.header-title { font-family: 'Playfair Display', serif; font-size: 20px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--sf2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px; transition: background 0.15s; }
+.btn-icon:active { background: var(--sf3); }
+.btn-add { background: var(--text); color: #fff; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 500; }
+.btn-add:active { background: #333; }
+
+/* Ay navigasyon */
+.month-nav { display: flex; align-items: center; justify-content: space-between; }
+.month-label { font-family: 'Playfair Display', serif; font-size: 16px; color: var(--accent); }
+.nav-btn { width: 28px; height: 28px; border-radius: 7px; background: var(--sf2); border: 1px solid var(--border); font-size: 14px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.nav-btn:active { background: var(--sf3); }
+
+/* ===== CAL STRIP ===== */
+.cal-strip {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+  flex-shrink: 0;
+}
+.cal-strip::-webkit-scrollbar { display: none; }
+.cal-day { flex: 0 0 44px; padding: 5px 2px; border-radius: 8px; text-align: center; cursor: pointer; border: 1px solid transparent; }
+.cal-day.active { background: var(--text); }
+.cal-day.today .cdnum { color: var(--accent); }
+.cal-day.active .cdnum, .cal-day.active .cdn { color: #fff; }
+.cdn { font-size: 8px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.3px; }
+.cdnum { font-size: 14px; font-weight: 500; color: var(--muted); margin-top: 1px; }
+.cal-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin: 3px auto 0; opacity: 0; }
+.cal-dot.on { opacity: 1; }
+.cal-day.active .cal-dot { background: rgba(255,255,255,0.6); }
+
+/* ===== STATS ===== */
+.stats { padding: 8px 16px; display: flex; gap: 12px; align-items: center; flex-shrink: 0; background: var(--bg); }
+.stat { font-size: 12px; color: var(--muted); }
+.stat strong { color: var(--text); font-size: 13px; }
+.progress-bar { flex: 1; height: 3px; background: var(--sf3); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--done); border-radius: 2px; transition: width 0.3s; }
+
+/* ===== TABS ===== */
+.tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab { flex: 1; padding: 9px 4px; font-size: 12px; color: var(--muted); text-align: center; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.tab.active { color: var(--accent2); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* ===== LIST ===== */
+.list-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px 16px; }
+
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex; gap: 10px; align-items: flex-start;
+  border-left: 3px solid var(--border);
+  transition: border-color 0.15s;
+  position: relative;
+}
+.task-card.banka { border-left-color: var(--banka); }
+.task-card.elden { border-left-color: var(--elden); }
+.task-card.done-card { opacity: 0.45; }
+
+.chk { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #CCC; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; color: transparent; margin-top: 1px; transition: all 0.15s; }
+.chk.checked { background: #E8F5EF; border-color: var(--done); color: var(--done); }
+
+.task-info { flex: 1; min-width: 0; }
+.task-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.kurum-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 500; }
+.badge-tur   { background: #F0EDE6; color: #7A6A42; }
+.badge-banka { background: #E4F3EC; color: #2A6E48; }
+.badge-elden { background: #E4EDF6; color: #2A4E78; }
+
+.task-date { font-size: 11px; color: var(--dim); margin-bottom: 2px; }
+.task-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-tutar { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700; color: var(--accent); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+.task-card.done-card .task-tutar { text-decoration: line-through; }
+
+.task-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.act-btn { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: none; color: var(--dim); font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.act-btn:active { background: var(--sf2); }
+
+/* ===== TOTAL ===== */
+.total-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border2);
+  padding: 10px 16px;
+  padding-bottom: calc(10px + var(--safe-bot));
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.total-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); }
+.total-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+.total-amount { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
+
+/* ===== EMPTY ===== */
+.empty { text-align: center; padding: 48px 20px; color: var(--dim); }
+.empty p { font-size: 15px; margin-bottom: 6px; }
+.empty small { font-size: 13px; }
+
+/* ===== OVERLAY & MODAL ===== */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px;
+  padding-bottom: calc(20px + var(--safe-bot));
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+}
+.overlay.open .modal { transform: none; }
+.modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto 16px; }
+.modal h3 { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 16px; }
+
+.fg { margin-bottom: 12px; }
+.fg label { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; }
+.fg input, .fg select, .fg textarea {
+  width: 100%; background: var(--sf2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 13px; color: var(--text);
+  font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.fg input:focus, .fg select:focus { border-color: var(--accent); }
+.fg textarea { resize: none; min-height: 70px; }
+
+.form-row { display: flex; gap: 10px; }
+.form-row .fg { flex: 1; }
+
+.rep-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.rep-opt { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; color: var(--muted); background: var(--sf2); }
+.rep-opt.sel { border-color: var(--accent); color: var(--accent); background: rgba(200,169,110,0.1); }
+
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.btn-cancel { flex: 1; background: var(--sf2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 14px; color: var(--muted); }
+.btn-save   { flex: 2; background: var(--text); color: #fff; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 500; }
+
+.scope-btn { width: 100%; background: var(--sf2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; text-align: left; margin-bottom: 8px; }
+.scope-btn strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.scope-btn small { font-size: 11px; color: var(--dim); }
+.scope-btn.danger { color: var(--danger); }
+
+/* ===== TOAST ===== */
+.toast { position: fixed; bottom: calc(80px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: #fff; border-radius: 20px; padding: 10px 18px; font-size: 13px; z-index: 999; opacity: 0; transition: all 0.25s; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== SYNC BADGE ===== */
+.sync-badge { position: fixed; top: calc(8px + var(--safe-top)); left: 50%; transform: translateX(-50%); background: var(--done); color: #fff; font-size: 11px; padding: 4px 12px; border-radius: 20px; z-index: 500; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+
+/* ===== ÖZET ===== */
+.summary-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+.sum-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+.sum-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.sum-card-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; }
+.sum-card-num { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
+.sum-card-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.sum-chart { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.sum-chart-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
+.sum-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sum-bar-label { min-width: 100px; font-size: 11px; font-weight: 500; }
+.sum-bar-track { flex: 1; height: 6px; background: var(--sf3); border-radius: 3px; overflow: hidden; }
+.sum-bar-fill { height: 100%; border-radius: 3px; }
+.sum-bar-val { min-width: 80px; text-align: right; font-size: 11px; font-weight: 600; }
+
+/* ===== LOADING ===== */
+.loading { display: flex; align-items: center; justify-content: center; flex: 1; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+</div>
+
+<!-- GÖREV MODAL -->
+<div class="overlay" id="task-overlay" onclick="overlayBg(event,'task-overlay',closeModal)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="modal-title">Yeni Görev</h3>
+    <div class="form-row">
+      <div class="fg"><label>Kurum *</label><select id="f-kurum" onchange="handleNewItem(this,'kurum')"></select></div>
+      <div class="fg"><label>Tarih *</label><input type="date" id="f-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Ödeme Türü *</label><select id="f-tur" onchange="handleNewItem(this,'tur')"></select></div>
+      <div class="fg"><label>Ödeme Şekli *</label><select id="f-kanal" onchange="handleNewItem(this,'kanal')"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Tutar (₺)</label><input type="text" id="f-tutar" placeholder="0" inputmode="numeric" oninput="fmtTutar(this)"></div>
+      <div class="fg"><label>Saat</label><input type="time" id="f-time"></div>
+    </div>
+    <div class="fg"><label>Notlar</label><textarea id="f-desc" placeholder="Notlar..."></textarea></div>
+    <div class="fg">
+      <label>Tekrar</label>
+      <div class="rep-opts">
+        <span class="rep-opt sel" data-val="none"    onclick="selRep('none',this)">Yok</span>
+        <span class="rep-opt"    data-val="daily"    onclick="selRep('daily',this)">Günlük</span>
+        <span class="rep-opt"    data-val="weekly"   onclick="selRep('weekly',this)">Haftalık</span>
+        <span class="rep-opt"    data-val="monthly"  onclick="selRep('monthly',this)">Aylık</span>
+        <span class="rep-opt"    data-val="workdays" onclick="selRep('workdays',this)">Hafta içi</span>
+      </div>
+    </div>
+    <div class="fg" id="rep-end-fg" style="display:none">
+      <label>Tekrar Bitiş</label>
+      <input type="date" id="f-rep-end">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">İptal</button>
+      <button class="btn-save"   onclick="saveTask()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- SİLME MODAL -->
+<div class="overlay" id="del-overlay" onclick="overlayBg(event,'del-overlay',closeDelModal)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Görevi Sil</h3>
+    <button class="scope-btn" onclick="doDelete('only')">  <strong>Yalnızca bu tarih</strong>  <small>Sadece bu tarihteki görevi siler</small></button>
+    <button class="scope-btn" onclick="doDelete('forward')"><strong>Bu tarih ve sonrası</strong> <small>Bu tarihten itibaren tüm tekrarları siler</small></button>
+    <button class="scope-btn danger" onclick="doDelete('all')"><strong>Tüm tekrarlar</strong>    <small>Ana görev dahil tümünü siler</small></button>
+    <button class="btn-cancel" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border)" onclick="closeDelModal()">İptal</button>
+  </div>
+</div>
+
+<!-- DÜZENLEME MODAL -->
+<div class="overlay" id="edit-overlay" onclick="overlayBg(event,'edit-overlay',closeEditModal)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Tekrar Eden Görevi Düzenle</h3>
+    <button class="scope-btn" onclick="doEdit('only')">    <strong>Yalnızca bu tarih</strong>    <small>Sadece bu tarihteki görevi günceller</small></button>
+    <button class="scope-btn" onclick="doEdit('forward')"> <strong>Bu tarih ve sonrası</strong>   <small>Bu tarihten itibaren tüm tekrarları günceller</small></button>
+    <button class="scope-btn" onclick="doEdit('all')">     <strong>Tüm tekrarlar</strong>         <small>Geçmiş dahil tüm tekrarları günceller</small></button>
+    <button class="btn-cancel" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border)" onclick="closeEditModal()">İptal</button>
+  </div>
+</div>
+
+<!-- INPUT MODAL -->
+<div class="overlay" id="input-overlay" onclick="overlayBg(event,'input-overlay',cancelInput)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="input-title">Yeni Ekle</h3>
+    <div class="fg">
+      <input type="text" id="input-field" placeholder="" onkeydown="if(event.key==='Enter')confirmInput()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="cancelInput()">İptal</button>
+      <button class="btn-save"   onclick="confirmInput()">Ekle</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="sync-badge" id="sync-badge">☁ Senkronize edildi</div>
+
+<script>
+// ===== FİREBASE =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAYnUlW2TbUWAIhmFmBzGC137UxudElVG0",
+  authDomain: "atilim-takip.firebaseapp.com",
+  projectId: "atilim-takip",
+  storageBucket: "atilim-takip.firebasestorage.app",
+  messagingSenderId: "315331645054",
+  appId: "1:315331645054:web:668e2e5fb5e4f8089a122f"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db    = firebase.firestore();
+const fbDoc = db.collection('atilim').doc('main');
+
+// ===== VERİ =====
+const DEFAULT_TUR   = ['KIRA','MAAS','KREDI KARTI','KREDI','EYUP KREDI','FRANCHISE','PRIM','SGK','SGK YAPILANDIRMA','VERGI','VERGI YAPILANDIRMA','YEMEK KART'].map(v=>({val:v}));
+const DEFAULT_KURUM = ['ACTION','ALTUNIZADE','ATASEHIR','BILECIK','DENIZLI','DRAGOS','EMINEVIM','ESENLER','HYUNDAI','KAVACIK','KAYNARCA','MALTEPE','PENDIK','RANGE','SAPANCA','SISLI'];
+const DEFAULT_KANAL = [{val:'BANKA'},{val:'ELDEN'}];
+const KURUM_COLORS  = ['#E07B5A','#5A8FE0','#5ABE8A','#C45AE0','#E0C05A','#5AD4E0','#E05A8F','#8FE05A','#A05AE0','#E08F5A','#5AE0C0','#E05A5A','#5A70E0','#C0E05A','#E05AC0','#5AAAE0'];
+
+let tasks     = [];
+let turList   = DEFAULT_TUR.map(x=>({...x}));
+let kurumList = [...DEFAULT_KURUM];
+let kanalList = DEFAULT_KANAL.map(x=>({...x}));
+
+let curDate    = new Date();
+let curTab     = 'today'; // today | all | summary
+let editId     = null;
+let editDate   = null;
+let repeatVal  = 'none';
+let pendingDel = null;
+let pendingEdit = null;
+let inputCb    = null;
+let localChange = false;
+
+// ===== UTILS =====
+const toDS     = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const fromDS   = s => new Date(s+'T00:00:00');
+const uid      = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+const fmtShort = s => fromDS(s).toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
+
+function kurumColor(kurum) {
+  var idx = DEFAULT_KURUM.indexOf(kurum);
+  if (idx >= 0) return KURUM_COLORS[idx % KURUM_COLORS.length];
+  var h = 0;
+  for (var i = 0; i < kurum.length; i++) h = kurum.charCodeAt(i) + ((h<<5) - h);
+  return KURUM_COLORS[Math.abs(h) % KURUM_COLORS.length];
+}
+
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(function() { el.classList.remove('show'); }, 2500);
+}
+
+function showSyncBadge() {
+  var el = document.getElementById('sync-badge');
+  el.style.opacity = '1';
+  clearTimeout(window._syncT);
+  window._syncT = setTimeout(function() { el.style.opacity = '0'; }, 2000);
+}
+
+function save() {
+  localChange = true;
+  fbDoc.set({
+    tasks: tasks,
+    turList: turList,
+    kurumList: kurumList,
+    kanalList: kanalList,
+    updatedAt: new Date().toISOString()
+  }).then(showSyncBadge).catch(function(e) { console.error(e); });
+}
+
+// ===== TEKRAR =====
+function getInstances(task, from, to) {
+  if (!task.repeat || task.repeat === 'none') return [];
+  var result = [];
+  var start  = fromDS(task.date);
+  var end    = task.repeatEnd
+    ? new Date(Math.min(fromDS(to).getTime(), fromDS(task.repeatEnd).getTime()))
+    : fromDS(to);
+
+  function push(d) {
+    var ds = toDS(d);
+    if (ds <= task.date) return;
+    if (ds < from || ds > toDS(end)) return;
+    if ((task.exceptions||[]).includes(ds)) return;
+    var ov = (task.overrides||{})[ds]||{};
+    result.push(Object.assign({}, task, ov, {id: task.id+'_'+ds, date: ds, isRepeat: true, origId: task.id}));
+  }
+
+  if (task.repeat === 'daily') {
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate()+1)) push(new Date(d));
+  } else if (task.repeat === 'weekly') {
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate()+7)) push(new Date(d));
+  } else if (task.repeat === 'monthly') {
+    var dom = start.getDate(), m = start.getMonth()+1, y = start.getFullYear();
+    for (;;) {
+      if (m > 11) { m = 0; y++; }
+      var days = new Date(y, m+1, 0).getDate();
+      var d = new Date(y, m, Math.min(dom, days));
+      if (d > end) break;
+      push(d); m++;
+    }
+  } else if (task.repeat === 'workdays') {
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+      if (d.getDay() >= 1 && d.getDay() <= 5) push(new Date(d));
+    }
+  }
+  return result;
+}
+
+function tasksForDate(ds) {
+  var direct  = tasks.filter(function(t) { return t.date === ds; });
+  var repeats = tasks.filter(function(t) { return t.repeat && t.repeat !== 'none'; })
+    .reduce(function(acc, t) { return acc.concat(getInstances(t, ds, ds)); }, []);
+  return direct.concat(repeats);
+}
+
+function tasksInRange(from, to) {
+  var direct  = tasks.filter(function(t) { return t.date >= from && t.date <= to; });
+  var seen    = new Set(direct.map(function(t) { return t.id; }));
+  var repeats = tasks.filter(function(t) { return t.repeat && t.repeat !== 'none'; })
+    .reduce(function(acc, t) { return acc.concat(getInstances(t, from, to)); }, [])
+    .filter(function(t) { return !seen.has(t.id); });
+  return direct.concat(repeats);
+}
+
+function isDone(task, dateStr) {
+  if (task.isRepeat) {
+    var orig = tasks.find(function(t) { return t.id === task.origId; });
+    return orig ? (orig.doneOnDates||[]).includes(dateStr) : false;
+  }
+  return task.done || false;
+}
+
+// ===== RENDER =====
+function buildApp() {
+  var app = document.getElementById('app');
+  var today = toDS(new Date());
+  var sel   = toDS(curDate);
+  var y = curDate.getFullYear(), m = curDate.getMonth();
+  var monthLabel = new Date(y,m).toLocaleDateString('tr-TR',{month:'long',year:'numeric'});
+  var daysInMonth = new Date(y,m+1,0).getDate();
+  var days = ['Paz','Pzt','Sal','Car','Per','Cum','Cmt'];
+
+  // Cal strip
+  var stripHtml = '';
+  for (var day = 1; day <= daysInMonth; day++) {
+    var d  = new Date(y, m, day);
+    var ds = toDS(d);
+    var has = tasksForDate(ds).length > 0;
+    var cls = 'cal-day' + (ds===sel?' active':'') + (ds===today?' today':'');
+    stripHtml += '<div class="'+cls+'" onclick="selectDay(\''+ds+'\')">' +
+      '<div class="cdn">'+days[d.getDay()]+'</div>' +
+      '<div class="cdnum">'+day+'</div>' +
+      '<div class="cal-dot'+(has?' on':'')+'"></div>' +
+      '</div>';
+  }
+
+  // Stats
+  var dayTasks = tasksForDate(sel);
+  var doneCnt  = dayTasks.filter(function(t) { return isDone(t,sel); }).length;
+  var pct      = dayTasks.length ? Math.round(doneCnt/dayTasks.length*100) : 0;
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<div class="header-top">' +
+        '<div class="header-title">Atılım Takip</div>' +
+        '<div class="header-actions">' +
+          '<button class="btn-icon" onclick="openSummary()">📊</button>' +
+          '<button class="btn-add" onclick="openModal()">+ Yeni</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="month-nav">' +
+        '<button class="nav-btn" onclick="shiftMonth(-1)">‹</button>' +
+        '<div class="month-label">'+monthLabel+'</div>' +
+        '<button class="nav-btn" onclick="shiftMonth(1)">›</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="cal-strip" id="cal-strip">'+stripHtml+'</div>' +
+    '<div class="stats">' +
+      '<div class="stat"><strong>'+dayTasks.length+'</strong> görev</div>' +
+      '<div class="stat"><strong>'+doneCnt+'</strong> tamamlandı</div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div>' +
+    '</div>' +
+    '<div class="tabs">' +
+      '<div class="tab'+(curTab==='today'?' active':'')+'" onclick="setTab(\'today\')">Bugün</div>' +
+      '<div class="tab'+(curTab==='week'?' active':'')+'" onclick="setTab(\'week\')">Bu Hafta</div>' +
+      '<div class="tab'+(curTab==='all'?' active':'')+'" onclick="setTab(\'all\')">Bu Ay</div>' +
+      '<div class="tab'+(curTab==='done'?' active':'')+'" onclick="setTab(\'done\')">Tamamlananlar</div>' +
+    '</div>' +
+    '<div class="list-wrap" id="list-wrap"></div>' +
+    '<div class="total-bar">' +
+      '<div><div class="total-label">Kalan Toplam</div><div class="total-sub" id="total-sub"></div></div>' +
+      '<div><span class="total-amount" id="total-amount">0</span> <span style="font-size:13px;color:var(--muted)">₺</span></div>' +
+    '</div>';
+
+  renderList();
+
+  // Seçili güne scroll
+  setTimeout(function() {
+    var active = document.querySelector('.cal-day.active');
+    if (active) active.scrollIntoView({inline:'center', behavior:'smooth', block:'nearest'});
+  }, 50);
+}
+
+function getFiltered() {
+  var sel = toDS(curDate);
+  var list = [];
+  if (curTab === 'today') {
+    list = tasksForDate(sel);
+  } else if (curTab === 'week') {
+    var diff = (new Date().getDay()+6)%7;
+    var mon  = new Date(); mon.setDate(mon.getDate()-diff);
+    var sun  = new Date(mon); sun.setDate(mon.getDate()+6);
+    list = tasksInRange(toDS(mon), toDS(sun));
+  } else if (curTab === 'all') {
+    var y = curDate.getFullYear(), m = curDate.getMonth();
+    var mStr = String(m+1).padStart(2,'0');
+    var days = new Date(y,m+1,0).getDate();
+    list = tasksInRange(y+'-'+mStr+'-01', y+'-'+mStr+'-'+String(days).padStart(2,'0'));
+  } else if (curTab === 'done') {
+    list = tasks.filter(function(t) { return t.done || (t.doneOnDates && t.doneOnDates.length > 0); });
+  }
+  return list;
+}
+
+function renderList() {
+  var wrap = document.getElementById('list-wrap');
+  if (!wrap) return;
+  var sel  = toDS(curDate);
+  var list = getFiltered();
+
+  // Total
+  var undone = list.filter(function(t) { return !isDone(t, t.date||sel); });
+  var total  = undone.reduce(function(s,t) { return s+(t.tutar||0); }, 0);
+  var totalEl = document.getElementById('total-amount');
+  var subEl   = document.getElementById('total-sub');
+  if (totalEl) totalEl.textContent = total.toLocaleString('tr-TR');
+  if (subEl)   subEl.textContent   = undone.length + ' yapilmamis gorev';
+
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty"><p>Gorev bulunamadi</p><small>Yeni gorev ekleyin</small></div>';
+    return;
+  }
+
+  list.sort(function(a,b) {
+    var ad = isDone(a,sel), bd = isDone(b,sel);
+    if (ad !== bd) return ad ? 1 : -1;
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return (a.time||'').localeCompare(b.time||'');
+  });
+
+  var showDate = curTab !== 'today';
+  var html = '';
+  list.forEach(function(t) {
+    var done = isDone(t, t.date||sel);
+    var kc   = kurumColor(t.kurum||'');
+    var kanCls = t.kanal === 'BANKA' ? 'banka' : 'elden';
+    var isRep  = (t.repeat && t.repeat !== 'none') || t.isRepeat;
+    html += '<div class="task-card '+kanCls+(done?' done-card':'')+'">' +
+      '<div class="chk'+(done?' checked':'')+'" onclick="toggleDone(\''+t.id+'\',\''+(t.origId||'')+'\',\''+(t.date||sel)+'\')">'+(done?'✓':'')+'</div>' +
+      '<div class="task-info">' +
+        (showDate ? '<div class="task-date">'+fmtShort(t.date)+'</div>' : '') +
+        '<div class="task-top">' +
+          '<span class="kurum-badge" style="background:'+kc+'22;color:'+kc+';border:1px solid '+kc+'44">'+(t.kurum||'—')+'</span>' +
+          '<span class="badge badge-tur">'+(t.tur||'—')+'</span>' +
+          '<span class="badge '+(t.kanal==='BANKA'?'badge-banka':'badge-elden')+'">'+(t.kanal||'—')+'</span>' +
+        '</div>' +
+        ((t.desc||'').trim() ? '<div class="task-desc">'+t.desc.trim()+'</div>' : '') +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">' +
+        '<div class="task-tutar">'+(t.tutar>0?t.tutar.toLocaleString('tr-TR')+' ₺':'—')+'</div>' +
+        '<div class="task-actions">' +
+          (isRep ? '<button class="act-btn" onclick="startEdit(\''+t.id+'\')">✏️</button>' : '<button class="act-btn" onclick="startEdit(\''+t.id+'\')">✏️</button>') +
+          '<button class="act-btn" onclick="startDelete(\''+t.id+'\',\''+(t.origId||'')+'\')">🗑</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function openSummary() {
+  var y = curDate.getFullYear(), m = curDate.getMonth();
+  var mStr = String(m+1).padStart(2,'0');
+  var days = new Date(y,m+1,0).getDate();
+  var from = y+'-'+mStr+'-01', to = y+'-'+mStr+'-'+String(days).padStart(2,'0');
+  var label = new Date(y,m).toLocaleDateString('tr-TR',{month:'long',year:'numeric'});
+  var list  = tasksInRange(from, to);
+  var done  = list.filter(function(t) { return isDone(t,t.date); });
+  var undone = list.filter(function(t) { return !isDone(t,t.date); });
+  var total  = list.reduce(function(s,t) { return s+(t.tutar||0); }, 0);
+  var paid   = done.reduce(function(s,t) { return s+(t.tutar||0); }, 0);
+  var unpaid = undone.reduce(function(s,t) { return s+(t.tutar||0); }, 0);
+
+  var byTur = {}, byKurum = {};
+  list.forEach(function(t) {
+    byTur[t.tur]     = (byTur[t.tur]||0)+(t.tutar||0);
+    byKurum[t.kurum] = (byKurum[t.kurum]||0)+(t.tutar||0);
+  });
+  var turRows   = Object.entries(byTur).sort(function(a,b){return b[1]-a[1];});
+  var kurumRows = Object.entries(byKurum).sort(function(a,b){return b[1]-a[1];});
+  var maxTur    = turRows[0]?turRows[0][1]:1;
+  var maxKurum  = kurumRows[0]?kurumRows[0][1]:1;
+
+  var app = document.getElementById('app');
+  app.innerHTML =
+    '<div class="header">' +
+      '<div class="header-top">' +
+        '<button class="btn-icon" onclick="buildApp()">← Geri</button>' +
+        '<div class="header-title" style="font-size:17px">'+label+'</div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="nav-btn" onclick="shiftMonth(-1);openSummary()">‹</button>' +
+          '<button class="nav-btn" onclick="shiftMonth(1);openSummary()">›</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="summary-wrap">' +
+      '<div class="sum-cards">' +
+        '<div class="sum-card"><div class="sum-card-label">Toplam</div><div class="sum-card-num">'+list.length+'</div><div class="sum-card-sub">'+total.toLocaleString('tr-TR')+' ₺</div></div>' +
+        '<div class="sum-card"><div class="sum-card-label">Odendi</div><div class="sum-card-num" style="color:var(--done)">'+done.length+'</div><div class="sum-card-sub">'+paid.toLocaleString('tr-TR')+' ₺</div></div>' +
+        '<div class="sum-card"><div class="sum-card-label">Bekleyen</div><div class="sum-card-num" style="color:var(--danger)">'+undone.length+'</div><div class="sum-card-sub">'+unpaid.toLocaleString('tr-TR')+' ₺</div></div>' +
+      '</div>' +
+      '<div class="sum-chart">' +
+        '<div class="sum-chart-title">Odeme Turune Gore</div>' +
+        turRows.map(function(r) {
+          return '<div class="sum-bar-row"><div class="sum-bar-label">'+r[0]+'</div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+Math.round(r[1]/maxTur*100)+'%;background:var(--accent)"></div></div><div class="sum-bar-val" style="color:var(--accent)">'+r[1].toLocaleString('tr-TR')+' ₺</div></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="sum-chart">' +
+        '<div class="sum-chart-title">Kuruma Gore</div>' +
+        kurumRows.map(function(r) {
+          var kc = kurumColor(r[0]);
+          return '<div class="sum-bar-row"><div class="sum-bar-label" style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:'+kc+';display:inline-block;flex-shrink:0"></span>'+r[0]+'</div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+Math.round(r[1]/maxKurum*100)+'%;background:'+kc+'"></div></div><div class="sum-bar-val">'+r[1].toLocaleString('tr-TR')+' ₺</div></div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+}
+
+// ===== NAVİGASYON =====
+function selectDay(ds) { curDate = fromDS(ds); renderList(); buildApp(); }
+function shiftMonth(n) {
+  curDate = new Date(curDate.getFullYear(), curDate.getMonth()+n, 1);
+}
+function setTab(tab) { curTab = tab; buildApp(); }
+
+// ===== GÖREV AKSİYONLARI =====
+function toggleDone(id, origId, dateStr) {
+  var realId = origId || id;
+  var task   = tasks.find(function(t) { return t.id === realId; });
+  if (!task) return;
+  if (origId) {
+    if (!task.doneOnDates) task.doneOnDates = [];
+    var idx = task.doneOnDates.indexOf(dateStr);
+    if (idx >= 0) task.doneOnDates.splice(idx,1); else task.doneOnDates.push(dateStr);
+  } else {
+    task.done = !task.done;
+  }
+  save(); buildApp();
+  if (task.done || (task.doneOnDates||[]).includes(dateStr)) toast('Tamamlandi! ');
+}
+
+function parseId(id, origId) {
+  var realOrig = origId || null;
+  var instDate = null;
+  if (!realOrig && id.length > 10) {
+    var dp = id.slice(-10), oi = id.slice(0,-11);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dp) && tasks.find(function(t){return t.id===oi;})) {
+      realOrig = oi; instDate = dp;
+    }
+  } else if (realOrig && id !== realOrig) {
+    var dp = id.slice(-10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dp)) instDate = dp;
+  }
+  return { taskId: realOrig || id, instDate: instDate };
+}
+
+function startDelete(id, origId) {
+  var p = parseId(id, origId);
+  var task = tasks.find(function(t) { return t.id === p.taskId; });
+  var isRep = task && task.repeat && task.repeat !== 'none';
+  if (isRep) {
+    pendingDel = p;
+    openOverlay('del-overlay');
+  } else {
+    tasks = tasks.filter(function(t) { return t.id !== p.taskId; });
+    save(); buildApp(); toast('Silindi');
+  }
+}
+
+function doDelete(scope) {
+  closeDelModal();
+  if (!pendingDel) return;
+  var taskId = pendingDel.taskId, instDate = pendingDel.instDate;
+  pendingDel = null;
+  var idx = tasks.findIndex(function(t) { return t.id === taskId; });
+  if (idx < 0) return;
+  var refDate = instDate || tasks[idx].date;
+  if (scope === 'all') {
+    tasks.splice(idx, 1);
+  } else if (scope === 'forward') {
+    var prev = fromDS(refDate); prev.setDate(prev.getDate()-1);
+    var ovr  = Object.fromEntries(Object.entries(tasks[idx].overrides||{}).filter(function(e){return e[0]<refDate;}));
+    var exc  = (tasks[idx].exceptions||[]).filter(function(e){return e<refDate;});
+    tasks[idx] = Object.assign({}, tasks[idx], {repeatEnd: toDS(prev), overrides: ovr, exceptions: exc});
+  } else if (scope === 'only') {
+    if (!tasks[idx].exceptions) tasks[idx].exceptions = [];
+    if (!tasks[idx].exceptions.includes(refDate)) tasks[idx].exceptions.push(refDate);
+    var ovr = Object.assign({}, tasks[idx].overrides||{});
+    delete ovr[refDate];
+    tasks[idx] = Object.assign({}, tasks[idx], {overrides: ovr});
+  }
+  save(); buildApp(); toast('Silindi');
+}
+
+function startEdit(id) {
+  var p = parseId(id, '');
+  var task = tasks.find(function(t) { return t.id === p.taskId; });
+  if (!task) return;
+  editId    = task.id;
+  editDate  = p.instDate;
+  var ov    = p.instDate ? ((task.overrides||{})[p.instDate]||{}) : {};
+  document.getElementById('modal-title').textContent = 'Gorevi Duzenle';
+  populateSelects();
+  document.getElementById('f-kurum').value    = ov.kurum   || task.kurum   || '';
+  document.getElementById('f-tur').value      = ov.tur     || task.tur     || '';
+  document.getElementById('f-kanal').value    = ov.kanal   || task.kanal   || '';
+  var tv = ov.tutar !== undefined ? ov.tutar : task.tutar;
+  document.getElementById('f-tutar').value    = tv ? parseInt(tv).toLocaleString('tr-TR') : '';
+  document.getElementById('f-date').value     = p.instDate || task.date;
+  document.getElementById('f-time').value     = task.time  || '';
+  document.getElementById('f-desc').value     = ov.desc !== undefined ? ov.desc : (task.desc||'');
+  repeatVal = task.repeat || 'none';
+  document.querySelectorAll('.rep-opt').forEach(function(el) { el.classList.toggle('sel', el.dataset.val === repeatVal); });
+  document.getElementById('rep-end-fg').style.display = repeatVal === 'none' ? 'none' : 'block';
+  document.getElementById('f-rep-end').value = task.repeatEnd || '';
+  openOverlay('task-overlay');
+}
+
+function saveTask() {
+  var kurum = document.getElementById('f-kurum').value.trim();
+  var tur   = document.getElementById('f-tur').value.trim();
+  var kanal = document.getElementById('f-kanal').value.trim();
+  if (!kurum) { toast('Kurum secin'); return; }
+  if (!tur)   { toast('Odeme turu secin'); return; }
+  if (!kanal) { toast('Odeme sekli secin'); return; }
+  var data = {
+    title: kurum+' — '+tur, kurum: kurum, tur: tur, kanal: kanal,
+    tutar: parseInt(document.getElementById('f-tutar').value.replace(/[^0-9]/g,''),10)||0,
+    date:  document.getElementById('f-date').value || toDS(new Date()),
+    time:  document.getElementById('f-time').value,
+    desc:  document.getElementById('f-desc').value.trim(),
+    repeat: repeatVal,
+    repeatEnd: document.getElementById('f-rep-end').value || ''
+  };
+  if (editId) {
+    pendingEdit = data;
+    var task = tasks.find(function(t){return t.id===editId;});
+    if (task && task.repeat && task.repeat !== 'none') {
+      closeOverlay('task-overlay');
+      openOverlay('edit-overlay');
+      return;
+    }
+    applyEdit('all');
+  } else {
+    tasks.push(Object.assign({id:uid(), done:false, doneOnDates:[], exceptions:[], overrides:{}}, data));
+    save(); closeModal(); buildApp(); toast('Gorev eklendi!');
+  }
+}
+
+function doEdit(scope) { applyEdit(scope); closeOverlay('edit-overlay'); }
+
+function applyEdit(scope) {
+  var d = pendingEdit;
+  if (!d || !editId) return;
+  var idx = tasks.findIndex(function(t){return t.id===editId;});
+  if (idx < 0) { closeModal(); return; }
+  if (scope === 'all' || !editDate) {
+    tasks[idx] = Object.assign({}, tasks[idx], d);
+  } else if (scope === 'forward') {
+    if (!tasks[idx].overrides) tasks[idx].overrides = {};
+    var allInst = getInstances(tasks[idx], editDate, '2099-12-31');
+    var ov = {kurum:d.kurum, tur:d.tur, kanal:d.kanal, tutar:d.tutar, desc:d.desc};
+    var dates = [editDate].concat(allInst.map(function(i){return i.date;}));
+    dates.forEach(function(dt){ tasks[idx].overrides[dt] = ov; });
+  } else if (scope === 'only') {
+    if (!tasks[idx].overrides) tasks[idx].overrides = {};
+    tasks[idx].overrides[editDate] = {kurum:d.kurum, tur:d.tur, kanal:d.kanal, tutar:d.tutar, desc:d.desc};
+  }
+  save(); closeModal(); buildApp(); toast('Guncellendi!');
+  editId = null; editDate = null; pendingEdit = null;
+}
+
+// ===== MODAL =====
+function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
+function overlayBg(e,id,fn) { if(e.target.id===id) fn(); }
+
+function openModal() {
+  if (!editId) {
+    document.getElementById('modal-title').textContent = 'Yeni Gorev';
+    ['f-kurum','f-tur','f-kanal','f-tutar','f-time','f-desc'].forEach(function(i){ document.getElementById(i).value=''; });
+    document.getElementById('f-date').value = toDS(curDate);
+    repeatVal = 'none';
+    document.querySelectorAll('.rep-opt').forEach(function(el,i){ el.classList.toggle('sel',i===0); });
+    document.getElementById('rep-end-fg').style.display = 'none';
+    document.getElementById('f-rep-end').value = '';
+    populateSelects();
+  }
+  openOverlay('task-overlay');
+}
+
+function closeModal()     { closeOverlay('task-overlay'); editId=null; editDate=null; pendingEdit=null; }
+function closeDelModal()  { closeOverlay('del-overlay'); }
+function closeEditModal() { closeOverlay('edit-overlay'); editId=null; editDate=null; pendingEdit=null; }
+
+function selRep(val, el) {
+  repeatVal = val;
+  document.querySelectorAll('.rep-opt').forEach(function(x){x.classList.remove('sel');});
+  el.classList.add('sel');
+  document.getElementById('rep-end-fg').style.display = val==='none'?'none':'block';
+}
+
+function fmtTutar(el) {
+  var raw = el.value.replace(/[^0-9]/g,'');
+  el.value = raw ? parseInt(raw,10).toLocaleString('tr-TR') : '';
+}
+
+function populateSelects() {
+  var ks = document.getElementById('f-kurum');
+  var ts = document.getElementById('f-tur');
+  var cs = document.getElementById('f-kanal');
+  var sk = ks.value, st = ts.value, sc = cs.value;
+  ks.innerHTML = '<option value="">Secin...</option>'+kurumList.map(function(k){return '<option value="'+k+'">'+k+'</option>';}).join('')+'<option value="__add__">+ Yeni ekle...</option>';
+  ts.innerHTML = '<option value="">Secin...</option>'+turList.map(function(t){return '<option value="'+t.val+'">'+t.val+'</option>';}).join('')+'<option value="__add__">+ Yeni ekle...</option>';
+  cs.innerHTML = '<option value="">Secin...</option>'+kanalList.map(function(k){return '<option value="'+k.val+'">'+k.val+'</option>';}).join('')+'<option value="__add__">+ Yeni ekle...</option>';
+  if (sk) ks.value = sk;
+  if (st) ts.value = st;
+  if (sc) cs.value = sc;
+}
+
+function handleNewItem(sel, type) {
+  if (sel.value !== '__add__') return;
+  sel.value = '';
+  var labels = {tur:'Odeme Turu', kurum:'Kurum Adi', kanal:'Odeme Sekli'};
+  var ph = {tur:'Tur adi...', kurum:'Kurum adi...', kanal:'Odeme sekli...'};
+  showInput(labels[type], ph[type], function(val) {
+    if (type==='tur')   { if (!turList.find(function(t){return t.val===val;})) turList.push({val:val}); }
+    if (type==='kurum') { if (!kurumList.includes(val)) kurumList.push(val); }
+    if (type==='kanal') { if (!kanalList.find(function(k){return k.val===val;})) kanalList.push({val:val}); }
+    setTimeout(function(){ populateSelects(); sel.value=val; }, 50);
+  });
+}
+
+function showInput(title, ph, cb) {
+  inputCb = cb;
+  document.getElementById('input-title').textContent = title;
+  document.getElementById('input-field').placeholder = ph;
+  document.getElementById('input-field').value = '';
+  openOverlay('input-overlay');
+  setTimeout(function(){ document.getElementById('input-field').focus(); }, 200);
+}
+
+function confirmInput() {
+  var val = document.getElementById('input-field').value.trim().toUpperCase();
+  closeOverlay('input-overlay');
+  if (val && inputCb) inputCb(val);
+  inputCb = null;
+}
+
+function cancelInput() { closeOverlay('input-overlay'); inputCb = null; }
+
+// ===== FIREBASE LISTENER =====
+fbDoc.onSnapshot(function(snap) {
+  if (!snap.exists) return;
+  if (localChange) { localChange = false; return; }
+  var data = snap.data();
+  if (!data.tasks) return;
+  tasks     = data.tasks;
+  turList   = data.turList   || turList;
+  kurumList = data.kurumList || kurumList;
+  kanalList = data.kanalList || kanalList;
+  buildApp();
+  showSyncBadge();
+  console.log('Guncelleme alindi:', tasks.length, 'gorev');
+}, function(e) { console.error('Listener hatasi:', e); });
+
+// ===== BAŞLAT =====
+fbDoc.get().then(function(snap) {
+  document.getElementById('loading').style.display = 'none';
+  if (snap.exists) {
+    var data = snap.data();
+    tasks     = data.tasks     || [];
+    turList   = data.turList   || DEFAULT_TUR.map(function(x){return Object.assign({},x);});
+    kurumList = data.kurumList || DEFAULT_KURUM.slice();
+    kanalList = data.kanalList || DEFAULT_KANAL.map(function(x){return Object.assign({},x);});
+  }
+  buildApp();
+}).catch(function(e) {
+  console.error('Yukleme hatasi:', e);
+  document.getElementById('loading').style.display = 'none';
+  buildApp();
+});
+</script>
+</body>
+</html>
