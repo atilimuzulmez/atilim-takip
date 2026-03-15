@@ -591,9 +591,13 @@ function renderMainView() {
       '</div>'+
       (showMonthNav ?
         '<div class="month-nav">'+
-          '<button class="nav-btn" onclick="shiftMonth(-1)">‹</button>'+
-          '<div class="month-label">'+monthLabel+'</div>'+
-          '<button class="nav-btn" onclick="shiftMonth(1)">›</button>'+
+          '<button class="nav-btn" onclick="shiftMonth(-1)" title="Onceki ay">«</button>'+
+          (curView==='today' ? '<button class="nav-btn" onclick="shiftDate(-1)" title="Onceki gun">‹</button>' : '')+
+          '<span class="month-label" onclick="goToday()" style="cursor:pointer">'+
+            (curView==='today' ? (toDS(curDate)===toDS(new Date()) ? 'Bugun' : fmtShort(toDS(curDate))) : monthLabel)+
+          '</span>'+
+          (curView==='today' ? '<button class="nav-btn" onclick="shiftDate(1)" title="Sonraki gun">›</button>' : '')+
+          '<button class="nav-btn" onclick="shiftMonth(1)" title="Sonraki ay">»</button>'+
         '</div>' : '')+
     '</div>'+
     (showCalStrip ? '<div class="cal-strip" id="cal-strip">'+stripHtml+'</div>' : '')+
@@ -844,6 +848,18 @@ function selectDay(ds) { curDate = fromDS(ds); renderApp(); }
 
 function shiftMonth(n) {
   curDate = new Date(curDate.getFullYear(), curDate.getMonth()+n, 1);
+}
+
+function shiftDate(n) {
+  curDate = new Date(curDate);
+  curDate.setDate(curDate.getDate()+n);
+  renderApp();
+}
+
+function goToday() {
+  curDate = new Date();
+  if (curView !== 'today') setView('today');
+  else renderApp();
 }
 
 function setView(v) {
