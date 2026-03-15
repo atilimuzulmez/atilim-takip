@@ -848,6 +848,7 @@ function selectDay(ds) { curDate = fromDS(ds); renderApp(); }
 
 function shiftMonth(n) {
   curDate = new Date(curDate.getFullYear(), curDate.getMonth()+n, 1);
+  renderApp();
 }
 
 function shiftDate(n) {
