@@ -367,6 +367,18 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
   </div>
 </div>
 
+<!-- DETAY MODAL -->
+<div class="overlay" id="detail-overlay" onclick="overlayBg(event,'detail-overlay',closeDetail)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="detail-content"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeDetail()">Kapat</button>
+      <button class="btn-save" id="detail-edit-btn">Duzenle</button>
+    </div>
+  </div>
+</div>
+
 <!-- INPUT MODAL -->
 <div class="overlay" id="input-overlay" onclick="overlayBg(event,'input-overlay',cancelInput)">
   <div class="modal">
@@ -689,8 +701,9 @@ function renderList() {
     var kc     = kurumColor(t.kurum||'');
     var kanCls = t.kanal==='BANKA'?'banka':'elden';
     var isRep  = (t.repeat&&t.repeat!=='none')||t.isRepeat;
-    html += '<div class="task-card '+kanCls+(done?' done-card':'')+'">' +
-      '<div class="chk'+(done?' checked':'')+'" onclick="toggleDone(\''+t.id+'\',\''+(t.origId||'')+'\',\''+(t.date||sel)+'\')">'+(done?'✓':'')+'</div>'+
+    var tid=t.id, tOrig=t.origId||'', tDate=t.date||sel;
+    html += '<div class="task-card '+kanCls+(done?' done-card':'')+' " onclick="showDetail(\''+tid+'\',\''+tOrig+'\',\''+tDate+'\')">' +
+      '<div class="chk'+(done?' checked':'')+' " onclick="event.stopPropagation();toggleDone(\''+tid+'\',\''+tOrig+'\',\''+tDate+'\')">'+(done?'✓':'')+'</div>'+
       '<div class="task-info">'+
         (showDate?'<div class="task-date">'+fmtShort(t.date)+'</div>':'')+
         '<div class="task-top">'+
@@ -703,8 +716,8 @@ function renderList() {
       '<div class="task-right">'+
         '<div class="task-tutar">'+(t.tutar>0?t.tutar.toLocaleString('tr-TR')+' TL':'—')+'</div>'+
         '<div class="task-actions">'+
-          '<button class="act-btn" onclick="startEdit(\''+t.id+'\')">✏️</button>'+
-          '<button class="act-btn" onclick="startDelete(\''+t.id+'\',\''+(t.origId||'')+'\')">🗑</button>'+
+          '<button class="act-btn" onclick="event.stopPropagation();startEdit(\''+tid+'\')">✏️</button>'+
+          '<button class="act-btn" onclick="event.stopPropagation();startDelete(\''+tid+'\',\''+tOrig+'\')">🗑</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -1101,6 +1114,67 @@ function confirmInput() {
   inputCb=null;
 }
 function cancelInput() { closeOverlay('input-overlay'); inputCb=null; }
+
+// ===== DETAY =====
+function showDetail(id, origId, dateStr) {
+  var p = parseId(id, origId);
+  var task = tasks.find(function(t){return t.id===p.taskId;});
+  if (!task) return;
+  var ov   = p.instDate ? ((task.overrides||{})[p.instDate]||{}) : {};
+  var kurum = ov.kurum || task.kurum || '—';
+  var tur   = ov.tur   || task.tur   || '—';
+  var kanal = ov.kanal || task.kanal || '—';
+  var tutar = ov.tutar !== undefined ? ov.tutar : (task.tutar||0);
+  var desc  = ov.desc  !== undefined ? ov.desc  : (task.desc||'');
+  var date  = p.instDate || task.date;
+  var kc    = kurumColor(kurum);
+  var done  = isDone(task.isRepeat ? task : task, dateStr);
+
+  var repLabel = {none:'Tekrar yok',daily:'Her gun',weekly:'Her hafta',monthly:'Her ay',workdays:'Hafta ici'};
+
+  document.getElementById('detail-content').innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">'+
+      '<span style="background:'+kc+'22;color:'+kc+';border:1px solid '+kc+'44;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">'+kurum+'</span>'+
+      '<span style="background:#F0EDE6;color:#7A6A42;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500">'+tur+'</span>'+
+      '<span style="background:'+(kanal==='BANKA'?'#E4F3EC':'#E4EDF6')+';color:'+(kanal==='BANKA'?'#2A6E48':'#2A4E78')+';padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500">'+kanal+'</span>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'+
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px">'+
+        '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Tarih</div>'+
+        '<div style="font-size:14px;font-weight:500">'+fmtShort(date)+'</div>'+
+      '</div>'+
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px">'+
+        '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Tutar</div>'+
+        '<div style="font-family:Playfair Display,serif;font-size:18px;font-weight:700;color:var(--accent)">'+(tutar>0?tutar.toLocaleString('tr-TR')+' TL':'—')+'</div>'+
+      '</div>'+
+    '</div>'+
+    (task.repeat && task.repeat !== 'none' ?
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:14px">'+
+        '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Tekrar</div>'+
+        '<div style="font-size:13px">'+(repLabel[task.repeat]||task.repeat)+(task.repeatEnd?' · '+fmtShort(task.repeatEnd)+' tarihine kadar':'')+'</div>'+
+      '</div>' : '')+
+    (task.time ?
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:14px">'+
+        '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Saat</div>'+
+        '<div style="font-size:13px">'+task.time+'</div>'+
+      '</div>' : '')+
+    (desc ?
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:4px">'+
+        '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Notlar</div>'+
+        '<div style="font-size:14px;line-height:1.6;color:var(--text)">'+desc+'</div>'+
+      '</div>' :
+      '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:4px;text-align:center;color:var(--dim);font-size:13px">Not yok</div>'
+    );
+
+  document.getElementById('detail-edit-btn').onclick = function() {
+    closeDetail();
+    startEdit(id);
+  };
+
+  openOverlay('detail-overlay');
+}
+
+function closeDetail() { closeOverlay('detail-overlay'); }
 
 // ===== AYARLAR =====
 function addListPrompt(type) {
