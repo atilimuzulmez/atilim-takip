@@ -372,9 +372,23 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; }
   <div class="modal">
     <div class="modal-handle"></div>
     <div id="detail-content"></div>
-    <div class="modal-actions" style="margin-top:12px">
-      <button class="btn-cancel" onclick="closeDetail()">Kapat</button>
-      <button class="btn-save" id="detail-edit-btn">Duzenle</button>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn-save" id="detail-rep-btn" style="display:none;background:var(--sf2);color:var(--text);border:1px solid var(--border)">↻ Tum Tekrarlari Gor</button>
+      <div class="modal-actions" style="margin-top:0">
+        <button class="btn-cancel" onclick="closeDetail()">Kapat</button>
+        <button class="btn-save" id="detail-edit-btn">Duzenle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEKRAR LİSTESİ MODAL -->
+<div class="overlay" id="replist-overlay" onclick="overlayBg(event,'replist-overlay',closeRepList)">
+  <div class="modal" style="max-height:85vh">
+    <div class="modal-handle"></div>
+    <div id="replist-content"></div>
+    <div style="margin-top:12px">
+      <button class="btn-cancel" id="replist-close-btn" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border)">Kapat</button>
     </div>
   </div>
 </div>
@@ -1131,6 +1145,7 @@ function showDetail(id, origId, dateStr) {
   var done  = isDone(task.isRepeat ? task : task, dateStr);
 
   var repLabel = {none:'Tekrar yok',daily:'Her gun',weekly:'Her hafta',monthly:'Her ay',workdays:'Hafta ici'};
+  var fmtFull = function(s) { return fromDS(s).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}); };
 
   document.getElementById('detail-content').innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">'+
@@ -1151,7 +1166,7 @@ function showDetail(id, origId, dateStr) {
     (task.repeat && task.repeat !== 'none' ?
       '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:14px">'+
         '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Tekrar</div>'+
-        '<div style="font-size:13px">'+(repLabel[task.repeat]||task.repeat)+(task.repeatEnd?' · '+fmtShort(task.repeatEnd)+' tarihine kadar':'')+'</div>'+
+        '<div style="font-size:13px">'+(repLabel[task.repeat]||task.repeat)+(task.repeatEnd?' · '+fmtFull(task.repeatEnd)+' tarihine kadar':'')+'</div>'+
       '</div>' : '')+
     (task.time ?
       '<div style="background:var(--sf2);border-radius:10px;padding:12px;margin-bottom:14px">'+
@@ -1171,10 +1186,66 @@ function showDetail(id, origId, dateStr) {
     startEdit(id);
   };
 
+  // Tekrar butonu - sadece tekrar eden görevlerde göster
+  var repBtn = document.getElementById('detail-rep-btn');
+  if (task.repeat && task.repeat !== 'none') {
+    repBtn.style.display = 'block';
+    repBtn.onclick = function() {
+      closeDetail();
+      showRepList(p.taskId);
+    };
+  } else {
+    repBtn.style.display = 'none';
+  }
+
   openOverlay('detail-overlay');
 }
 
 function closeDetail() { closeOverlay('detail-overlay'); }
+
+// ===== TEKRAR LİSTESİ =====
+function showRepList(origId) {
+  var task = tasks.find(function(t){return t.id===origId;});
+  if (!task) return;
+  var instances = getInstances(task, '2020-01-01', '2099-12-31');
+  var all = [{id:task.id, date:task.date, isRepeat:false}].concat(instances);
+  all.sort(function(a,b){return a.date.localeCompare(b.date);});
+  var today = toDS(new Date());
+  var kc = kurumColor(task.kurum||'');
+
+  var html = '<div style="font-family:Playfair Display,serif;font-size:17px;margin-bottom:14px">'+
+    (task.kurum||'')+'  '+( task.tur||'')+'</div>';
+
+  html += '<div style="max-height:55vh;overflow-y:auto">';
+  all.forEach(function(t) {
+    var ov    = t.isRepeat ? ((task.overrides||{})[t.date]||{}) : {};
+    var kurum = ov.kurum || task.kurum || '—';
+    var tutar = ov.tutar !== undefined ? ov.tutar : (task.tutar||0);
+    var done  = t.isRepeat ? (task.doneOnDates||[]).includes(t.date) : task.done;
+    var isPast = t.date < today;
+    var isToday = t.date === today;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);opacity:'+(isPast&&!isToday?'0.5':'1')+'">'+
+      '<div style="min-width:90px;font-size:12px;color:var(--muted)">'+
+        fmtShort(t.date)+
+        (t.date===task.date?'<span style="font-size:10px;color:var(--accent);margin-left:4px">Ana</span>':'')+
+        (isToday?'<span style="font-size:10px;color:var(--done);margin-left:4px">Bugun</span>':'')+
+      '</div>'+
+      '<div style="flex:1;font-size:13px;font-weight:500;'+(done?'text-decoration:line-through;color:var(--dim)':'')+'">'+kurum+
+        (Object.keys(ov).length>0?'<span style="font-size:10px;color:var(--accent);margin-left:4px">duz.</span>':'')+
+      '</div>'+
+      '<div style="font-family:Playfair Display,serif;font-size:13px;font-weight:700;color:var(--accent);'+(done?'text-decoration:line-through':'')+'">'+
+        (tutar>0?tutar.toLocaleString('tr-TR')+' TL':'—')+
+      '</div>'+
+    '</div>';
+  });
+  html += '</div>';
+
+  document.getElementById('replist-content').innerHTML = html;
+  document.getElementById('replist-close-btn').onclick = closeRepList;
+  openOverlay('replist-overlay');
+}
+
+function closeRepList() { closeOverlay('replist-overlay'); }
 
 // ===== AYARLAR =====
 function addListPrompt(type) {
