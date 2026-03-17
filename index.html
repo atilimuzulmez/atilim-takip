@@ -1358,7 +1358,8 @@ auth.onAuthStateChanged(function(user) {
 // ===== BAŞLAT =====
 function startApp() {
   fbDoc.get().then(function(snap) {
-    document.getElementById('loading').style.display='none';
+    var loadEl = document.getElementById('loading');
+    if (loadEl) loadEl.style.display='none';
     if(snap.exists) {
       var data=snap.data();
       tasks    =data.tasks    ||[];
@@ -1369,7 +1370,8 @@ function startApp() {
     renderApp();
   }).catch(function(e) {
     console.error(e);
-    document.getElementById('loading').style.display='none';
+    var loadEl = document.getElementById('loading');
+    if (loadEl) loadEl.style.display='none';
     renderApp();
   });
 }
